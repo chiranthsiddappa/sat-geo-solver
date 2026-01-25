@@ -4,9 +4,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sat-geo-solver"
-version = "0.0.1"
 description = "A satellite geolocation toolkit."
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 dependencies = []
+dynamic = ["version"]
+
+[tool.hatch.version]
+path = "src/sat_geo_solver/__version__.py"
