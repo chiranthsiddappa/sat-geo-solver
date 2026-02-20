@@ -37,6 +37,12 @@ class TestObserve(unittest.TestCase):
 
         # Observe instance
         cls.observe = Observe(cls.sat, cls.dt_observables)
+        cls.observe_epoch = Observe(cls.sat, cls.sat.epoch.utc_datetime())
+
+    def test_distance_to_single_epoch(self):
+        expected = distance_to(self.sat, self.cos_ll, self.sat.epoch.utc_datetime())
+        actual = self.observe_epoch.distance_to(self.cos_ll)
+        assert_allclose(actual, expected)
 
     def test_distance_to(self):
         # Compare Observe.distance_to with standalone distance_to
@@ -44,6 +50,13 @@ class TestObserve(unittest.TestCase):
         actual = self.observe.distance_to(self.cos_ll)
 
         assert_allclose(actual, expected)
+
+    def test_range_and_rate_single_epoch(self):
+        expected_range, expected_rate = range_and_rate(self.sat, self.cos_ll, self.sat.epoch.utc_datetime())
+        actual_range, actual_rate = self.observe_epoch.range_and_rate(self.cos_ll)
+
+        assert_allclose(actual_range, expected_range)
+        assert_allclose(actual_rate, expected_rate)
 
     def test_range_and_rate(self):
         # Compare Observe.range_and_rate with standalone range_and_rate
