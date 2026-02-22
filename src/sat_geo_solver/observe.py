@@ -4,9 +4,40 @@ from typing import List, Tuple
 import numpy as np
 from skyfield.api import load as skyf_load
 from skyfield.api import wgs84
+from skyfield.constants import C as SPEED_OF_LIGHT
 from skyfield.timelib import Timescale
 
 __ts__ = skyf_load.timescale()
+
+
+def doppler(frequency: float | np.ndarray, velocity: float | np.ndarray) -> float | np.ndarray:
+    """
+    Classical (non-relativistic) Doppler: compute received frequency from a line-of-sight range rate.
+
+    Sign convention (Skyfield):
+      - range_rate > 0 means range increasing (receding) -> received frequency decreases
+
+    :param frequency: Frequency at the emitter in Hz
+    :param velocity: Velocity in m/s (positive = moving away)
+    :return: Frequency at the receiver in Hz
+    """
+    return frequency * (1 - (velocity / SPEED_OF_LIGHT))
+
+
+def relativistic_doppler(frequency: float | np.ndarray, velocity: float | np.ndarray) -> float | np.ndarray:
+    """
+    Relativistic Doppler: compute received frequency from a line-of-sight range rate.
+
+    Sign convention (Skyfield):
+      - range_rate > 0 means range increasing (receding)
+      - Doppler beta is positive for approaching, so beta = -range_rate / c
+
+    :param frequency: Frequency at the emitter in Hz
+    :param velocity: Velocity in m/s (positive = moving away)
+    :return: Frequency at the receiver in Hz
+    """
+    beta = -velocity / SPEED_OF_LIGHT
+    return frequency * np.sqrt((1 + beta) / (1 - beta))
 
 
 def dt_to_ts(dt: datetime | List[datetime]) -> Timescale:
@@ -97,7 +128,7 @@ class Observe:
         pos = wgs84.latlon(*from_pos)
         loc_diff = self.sat_at - pos.at(self.observe_ts)
         _, _, range_distance, _, _, range_rate = loc_diff.frame_latlon_and_rates(pos)
-        return range_distance.km * 1000, range_rate.km_per_s * 1000
+        return range_distance.m, range_rate.m_per_s
 
     def pos_xyz(self) -> np.ndarray:
         """
@@ -125,6 +156,37 @@ class Observe:
         pos = wgs84.latlon(*from_pos)
         loc_diff = self.sat_at - pos.at(self.observe_ts)
         return loc_diff.distance().light_seconds()
+
+    def doppler_shift(self, from_pos: list | np.ndarray, to_pos: list | np.ndarray,
+                      uplink: float, translation_frequency: float) -> float | np.ndarray:
+        """
+        Bent-pipe doppler.
+
+        Steps:
+          1) Uplink: ground transmitter -> satellite receiver (doppler on uplink)
+          2) Translate at satellite: f_down_tx = f_up_rx - translation_frequency
+          3) Downlink: satellite transmitter -> ground receiver (doppler on downlink)
+
+        Returns the final doppler shift in Hz relative to the nominal translated frequency
+        (uplink - translation_frequency).
+
+        :param from_pos: The emitter location.
+        :param to_pos: The receiver location.
+        :param uplink: Uplink frequency in Hz.
+        :param translation_frequency: The translation frequency in Hz onboard the satellite.
+        :return: Doppler shift in Hz.
+        """
+        _, sat_range_rate = self.range_and_rate(from_pos)  # This is the emitter's perspective
+        f_up_rx_at_satellite = relativistic_doppler(uplink, sat_range_rate)
+
+        f_down_tx = f_up_rx_at_satellite - translation_frequency  # Satellite's downlink transmission
+
+        _, rr_downlink = self.range_and_rate(to_pos)
+        f_down_rx_at_ground = relativistic_doppler(f_down_tx, rr_downlink)
+
+        f_nominal = uplink - translation_frequency
+
+        return f_down_rx_at_ground - f_nominal
 
     def __repr__(self):
         return f"Observe(sat={self.sat}, at={self.observe_ts})"

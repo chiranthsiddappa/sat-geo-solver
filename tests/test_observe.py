@@ -6,8 +6,9 @@ from numpy.testing import assert_allclose
 from skyfield.api import load as skyf_load
 from skyfield.iokit import parse_tle_file
 
-from sat_geo_solver.observe import (Observe, distance_to, light_seconds,
-                                    range_and_rate)
+from sat_geo_solver.observe import (Observe, distance_to, doppler,
+                                    light_seconds, range_and_rate,
+                                    relativistic_doppler)
 
 
 class TestObserve(unittest.TestCase):
@@ -90,6 +91,13 @@ class TestObserve(unittest.TestCase):
         # Since it's a list of datetimes, shape should be (3, N) for skyfield position/velocity
         self.assertEqual(pos.shape, (3, len(self.dt_observables)))
         self.assertEqual(vel.shape, (3, len(self.dt_observables)))
+
+
+def test_relativistic_doppler_against_doppler():
+    freq = 14.25e9
+    vel = 10
+    r_dop = relativistic_doppler(freq, vel)
+    assert_allclose(r_dop, doppler(freq, vel))
 
 
 if __name__ == '__main__':
