@@ -5,7 +5,7 @@ import numpy as np
 from skyfield.api import load as skyf_load
 from skyfield.api import wgs84
 from skyfield.constants import C as SPEED_OF_LIGHT
-from skyfield.timelib import Timescale
+from skyfield.timelib import Time
 
 __ts__ = skyf_load.timescale()
 
@@ -17,11 +17,11 @@ def doppler(frequency: float | np.ndarray, range_rate: float | np.ndarray) -> fl
     Sign convention (Skyfield):
       - range_rate > 0 means range increasing (receding) -> received frequency decreases
 
-    :param frequency: Frequency at the emitter in Hz
+    :param frequency: Transmitted frequency in Hz
     :param range_rate: Line-of-sight range rate in m/s (positive = moving away)
-    :return: Frequency at the receiver in Hz
+    :return: Received frequency in Hz
     """
-    return frequency * (1 - (range_rate / SPEED_OF_LIGHT))
+    return frequency * (1.0 - (range_rate / SPEED_OF_LIGHT))
 
 
 def relativistic_doppler(frequency: float | np.ndarray, range_rate: float | np.ndarray) -> float | np.ndarray:
@@ -32,20 +32,20 @@ def relativistic_doppler(frequency: float | np.ndarray, range_rate: float | np.n
       - range_rate > 0 means range increasing (receding)
       - Doppler beta is positive for approaching, so beta = -range_rate / c
 
-    :param frequency: Frequency at the emitter in Hz
+    :param frequency: Transmitted frequency in Hz
     :param range_rate: Line-of-sight range rate in m/s (positive = moving away)
-    :return: Frequency at the receiver in Hz
+    :return: Received frequency in Hz
     """
     beta = -range_rate / SPEED_OF_LIGHT
-    return frequency * np.sqrt((1 + beta) / (1 - beta))
+    return frequency * np.sqrt((1.0 + beta) / (1.0 - beta))
 
 
-def dt_to_ts(dt: datetime | List[datetime]) -> Timescale:
+def dt_to_ts(dt: datetime | List[datetime]) -> Time:
     """
-    Convert datetime or list of datetimes to Skyfield Timescale.
+    Convert datetime or list of datetimes to Skyfield Time.
 
     :param dt: Datetime or list of datetimes
-    :return: Skyfield Timescale object
+    :return: Skyfield Time object
     """
     if isinstance(dt, datetime):
         return __ts__.from_datetime(dt)
@@ -157,36 +157,88 @@ class Observe:
         loc_diff = self.sat_at - pos.at(self.observe_ts)
         return loc_diff.distance().light_seconds()
 
-    def doppler_shift(self, from_pos: list | np.ndarray, to_pos: list | np.ndarray,
-                      uplink: float, translation_frequency: float) -> float | np.ndarray:
+    def downlink_received_frequency(self,
+                                    from_pos: list | np.ndarray,
+                                    to_pos: list | np.ndarray,
+                                    uplink: float,
+                                    translation_frequency: float) -> float | np.ndarray:
         """
-        Bent-pipe doppler.
+        Bent-pipe link budget in terms of frequency only.
 
         Steps:
-          1) Uplink: ground transmitter -> satellite receiver (doppler on uplink)
+          1) Uplink: ground transmitter -> satellite receiver (uplink Doppler)
           2) Translate at satellite: f_down_tx = f_up_rx - translation_frequency
-          3) Downlink: satellite transmitter -> ground receiver (doppler on downlink)
+          3) Downlink: satellite transmitter -> ground receiver (downlink Doppler)
 
-        Returns the final doppler shift in Hz relative to the nominal translated frequency
-        (uplink - translation_frequency).
-
-        :param from_pos: The emitter location.
-        :param to_pos: The receiver location.
+        :param from_pos: Position from which the signal is emitted.
+        :param to_pos: Position at which the signal is received.
         :param uplink: Uplink frequency in Hz.
-        :param translation_frequency: The translation frequency in Hz onboard the satellite.
-        :return: Doppler shift in Hz.
+        :param translation_frequency: Translation frequency in Hz.
+        :return: Final received downlink frequency at the ground receiver in Hz
         """
-        _, sat_range_rate = self.range_and_rate(from_pos)  # This is the emitter's perspective
-        f_up_rx_at_satellite = relativistic_doppler(uplink, sat_range_rate)
 
-        f_down_tx = f_up_rx_at_satellite - translation_frequency  # Satellite's downlink transmission
+        _, rr_uplink = self.range_and_rate(from_pos)
+        f_up_rx_at_satellite = relativistic_doppler(uplink, rr_uplink)
+
+        f_down_tx = f_up_rx_at_satellite - translation_frequency
 
         _, rr_downlink = self.range_and_rate(to_pos)
-        f_down_rx_at_ground = relativistic_doppler(f_down_tx, rr_downlink)
+        return relativistic_doppler(f_down_tx, rr_downlink)
 
+    def doppler_shift(self,
+                      from_pos: list | np.ndarray,
+                      to_pos: list | np.ndarray,
+                      uplink: float,
+                      translation_frequency: float) -> float | np.ndarray:
+        """
+        Final bent-pipe Doppler shift in Hz, relative to the nominal translated frequency:
+            f_nominal = uplink - translation_frequency
+
+        :param from_pos: Position from which the signal is emitted.
+        :param to_pos: Position at which the signal is received.
+        :param uplink: Uplink frequency in Hz.
+        :param translation_frequency: Translation frequency in Hz.
+        :return: (f_down_rx_at_ground - f_nominal) in Hz
+        """
+        f_down_rx_at_ground = self.downlink_received_frequency(
+            from_pos=from_pos,
+            to_pos=to_pos,
+            uplink=uplink,
+            translation_frequency=translation_frequency,
+        )
         f_nominal = uplink - translation_frequency
-
         return f_down_rx_at_ground - f_nominal
+
+    def fdoa(self,
+             from_pos: list | np.ndarray,
+             rx1_pos: list | np.ndarray,
+             rx2_pos: list | np.ndarray,
+             uplink: float,
+             translation_frequency: float) -> float | np.ndarray:
+        """
+        Frequency Difference of Arrival (FDOA) for a bent-pipe satellite:
+            FDOA = f_rx(rx1) - f_rx(rx2)
+
+        :param from_pos: Position from which the signal is emitted.
+        :param rx1_pos: Position of the first receiver.
+        :param rx2_pos: Position of the second receiver.
+        :param uplink: Uplink frequency in Hz.
+        :param translation_frequency: Translation frequency in Hz.
+        :return: Frequency difference in Hz (same shape as the underlying observation times)
+        """
+        f1 = self.downlink_received_frequency(
+            from_pos=from_pos,
+            to_pos=rx1_pos,
+            uplink=uplink,
+            translation_frequency=translation_frequency,
+        )
+        f2 = self.downlink_received_frequency(
+            from_pos=from_pos,
+            to_pos=rx2_pos,
+            uplink=uplink,
+            translation_frequency=translation_frequency,
+        )
+        return f1 - f2
 
     def __repr__(self):
         return f"Observe(sat={self.sat}, at={self.observe_ts})"
