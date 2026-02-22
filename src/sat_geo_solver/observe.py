@@ -10,7 +10,7 @@ from skyfield.timelib import Timescale
 __ts__ = skyf_load.timescale()
 
 
-def doppler(frequency: float | np.ndarray, velocity: float | np.ndarray) -> float | np.ndarray:
+def doppler(frequency: float | np.ndarray, range_rate: float | np.ndarray) -> float | np.ndarray:
     """
     Classical (non-relativistic) Doppler: compute received frequency from a line-of-sight range rate.
 
@@ -18,13 +18,13 @@ def doppler(frequency: float | np.ndarray, velocity: float | np.ndarray) -> floa
       - range_rate > 0 means range increasing (receding) -> received frequency decreases
 
     :param frequency: Frequency at the emitter in Hz
-    :param velocity: Velocity in m/s (positive = moving away)
+    :param range_rate: Line-of-sight range rate in m/s (positive = moving away)
     :return: Frequency at the receiver in Hz
     """
-    return frequency * (1 - (velocity / SPEED_OF_LIGHT))
+    return frequency * (1 - (range_rate / SPEED_OF_LIGHT))
 
 
-def relativistic_doppler(frequency: float | np.ndarray, velocity: float | np.ndarray) -> float | np.ndarray:
+def relativistic_doppler(frequency: float | np.ndarray, range_rate: float | np.ndarray) -> float | np.ndarray:
     """
     Relativistic Doppler: compute received frequency from a line-of-sight range rate.
 
@@ -33,10 +33,10 @@ def relativistic_doppler(frequency: float | np.ndarray, velocity: float | np.nda
       - Doppler beta is positive for approaching, so beta = -range_rate / c
 
     :param frequency: Frequency at the emitter in Hz
-    :param velocity: Velocity in m/s (positive = moving away)
+    :param range_rate: Line-of-sight range rate in m/s (positive = moving away)
     :return: Frequency at the receiver in Hz
     """
-    beta = -velocity / SPEED_OF_LIGHT
+    beta = -range_rate / SPEED_OF_LIGHT
     return frequency * np.sqrt((1 + beta) / (1 - beta))
 
 
