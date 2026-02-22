@@ -55,6 +55,21 @@ def range_and_rate(sat, from_pos: list | np.ndarray, at: datetime | List[datetim
     return range_distance.km * 1000, range_rate.km_per_s * 1000
 
 
+def light_seconds(sat, from_pos: list | np.ndarray, at: datetime | List[datetime]) -> float | np.ndarray:
+    """
+    Calculate the light time between the observer and the satellite.
+
+    :param sat: Satellite to observe
+    :param from_pos: Position to calculate light time from
+    :param at: Time to calculate light time at
+    :return: Light time in seconds
+    """
+    pos = wgs84.latlon(*from_pos)
+    loc_diff = sat - pos
+    observe_ts = dt_to_ts(at)
+    return loc_diff.at(observe_ts).distance().light_seconds()
+
+
 class Observe:
 
     def __init__(self, sat, at: datetime | List[datetime]):
@@ -99,6 +114,17 @@ class Observe:
         :return: np.ndarray
         """
         return self.sat_at.velocity.km_per_s * 1000
+
+    def light_seconds(self, from_pos: list | np.ndarray) -> float | np.ndarray:
+        """
+        Calculate the light time between the observer and the satellite.
+
+        :param from_pos: Position to calculate light time from
+        :return: Light time in seconds
+        """
+        pos = wgs84.latlon(*from_pos)
+        loc_diff = self.sat_at - pos.at(self.observe_ts)
+        return loc_diff.distance().light_seconds()
 
     def __repr__(self):
         return f"Observe(sat={self.sat}, at={self.observe_ts})"

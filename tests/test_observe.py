@@ -6,7 +6,8 @@ from numpy.testing import assert_allclose
 from skyfield.api import load as skyf_load
 from skyfield.iokit import parse_tle_file
 
-from sat_geo_solver.observe import Observe, distance_to, range_and_rate
+from sat_geo_solver.observe import (Observe, distance_to, light_seconds,
+                                    range_and_rate)
 
 
 class TestObserve(unittest.TestCase):
@@ -65,6 +66,18 @@ class TestObserve(unittest.TestCase):
 
         assert_allclose(actual_range, expected_range)
         assert_allclose(actual_rate, expected_rate)
+
+    def test_light_seconds_single_epoch(self):
+        expected = light_seconds(self.sat, self.cos_ll, self.sat.epoch.utc_datetime())
+        actual = self.observe_epoch.light_seconds(self.cos_ll)
+        assert_allclose(actual, expected)
+
+    def test_light_seconds(self):
+        # Compare Observe.light_seconds with standalone light_seconds
+        expected = light_seconds(self.sat, self.cos_ll, self.dt_observables)
+        actual = self.observe.light_seconds(self.cos_ll)
+
+        assert_allclose(actual, expected)
 
     def test_pos_vel_xyz_output(self):
         # Verify that pos_xyz and vel_xyz return numpy arrays with xyz
