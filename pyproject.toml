@@ -1,5 +1,8 @@
 [build-system]
-requires = ["hatchling"]
+requires = [
+    "hatchling",
+    "hatch-requirements-txt"
+]
 build-backend = "hatchling.build"
 
 [project]
@@ -8,8 +11,10 @@ description = "A satellite geolocation toolkit."
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
-dependencies = []
-dynamic = ["version"]
+dynamic = ["version", "dependencies"]
 
 [tool.hatch.version]
 path = "src/sat_geo_solver/__version__.py"
+
+[tool.hatch.metadata.hooks.requirements_txt]
+files = ["requirements.txt"]
