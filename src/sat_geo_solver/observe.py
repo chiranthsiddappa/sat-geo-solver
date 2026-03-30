@@ -67,7 +67,7 @@ def distance_to(sat, from_pos: list | np.ndarray, at: datetime | List[datetime])
     pos = wgs84.latlon(*from_pos)
     loc_diff = sat - pos
     observe_ts = dt_to_ts(at)
-    return loc_diff.at(observe_ts).distance().km * 1000
+    return loc_diff.at(observe_ts).distance().m
 
 
 def range_and_rate(sat, from_pos: list | np.ndarray, at: datetime | List[datetime]) -> Tuple[np.ndarray, np.ndarray]:
@@ -83,7 +83,7 @@ def range_and_rate(sat, from_pos: list | np.ndarray, at: datetime | List[datetim
     loc_diff = sat - pos
     observe_ts = dt_to_ts(at)
     _, _, range_distance, _, _, range_rate = loc_diff.at(observe_ts).frame_latlon_and_rates(pos)
-    return range_distance.km * 1000, range_rate.km_per_s * 1000
+    return range_distance.m, range_rate.m_per_s
 
 
 def light_seconds(sat, from_pos: list | np.ndarray, at: datetime | List[datetime]) -> float | np.ndarray:
@@ -116,7 +116,7 @@ class Observe:
         :return: Distance to the satellite in meters
         """
         loc_diff = self.sat_at - wgs84.latlon(*from_pos).at(self.observe_ts)
-        return loc_diff.distance().km * 1000
+        return loc_diff.distance().m
 
     def range_and_rate(self, from_pos: list | np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -136,7 +136,7 @@ class Observe:
 
         :return: np.ndarray
         """
-        return self.sat_at.position.km * 1000
+        return self.sat_at.position.m
 
     def vel_xyz(self) -> np.ndarray:
         """
@@ -144,7 +144,7 @@ class Observe:
 
         :return: np.ndarray
         """
-        return self.sat_at.velocity.km_per_s * 1000
+        return self.sat_at.velocity.m_per_s
 
     def light_seconds(self, from_pos: list | np.ndarray) -> float | np.ndarray:
         """
