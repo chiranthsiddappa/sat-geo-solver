@@ -1,3 +1,5 @@
 # Requirements for sat-geo-solver
 numpy
 skyfield
+pymap3d
+scipy
